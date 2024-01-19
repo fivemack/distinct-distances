@@ -40,9 +40,13 @@ fn distances(u: &[Vec<u8>]) -> Vec<u16> {
         .collect()
 }
 
-fn distance_bitset(u: &[Vec<u8>]) -> BitSet {
+fn distance_bitset(u: &[u8], d: usize) -> BitSet {
     let mut bs = BitSet::new();
-    for a in distances(u) {
+    for a in u
+        .chunks(d)
+        .tuple_combinations::<(_, _)>()
+        .map(|a| dist(a.0, a.1))
+    {
         bs.insert(a as usize);
     }
     bs
@@ -53,28 +57,83 @@ fn hypercube_points(dim: usize, bound: u8) -> Vec<Vec<u8>> {
     jj.multi_cartesian_product().collect()
 }
 
-fn extend(v: Vec<Vec<u8>>, target_ln: usize, universe: &[Vec<u8>], actor: &dyn ResultAcceptor) {
-    if v.len() == target_ln {
-        actor.act(&v);
-        return;
-    }
-    let dd0 = distance_bitset(&v);
-    for vx in 0..(*universe).len() {
-        let np = &universe[vx];
-        let mut nds = dd0.clone();
-        let mut ok = true;
-        for w in &v {
-            let xd = dist(w, np) as usize;
-            if nds.contains(xd) {
-                ok = false;
-                break;
-            }
-            nds.insert(xd);
+struct Extender<'a> {
+    actor: &'a dyn ResultAcceptor,
+    initialised_length: usize,
+    initialised_universe_offset: usize,
+
+    dimensionality: usize,
+    target_xln: usize,
+
+    universe: &'a Vec<Vec<u8>>,
+
+    state: Vec<u8>,
+}
+
+impl<'a> Extender<'a> {
+    fn new(
+        target_ln: usize,
+        dimensionality: usize,
+        universe: &'a Vec<Vec<u8>>,
+        actor: &'a dyn ResultAcceptor,
+    ) -> Extender<'a> {
+        let mut state = Vec::new();
+        state.resize(dimensionality * target_ln, 0);
+        let target_xln = state.len();
+        Extender {
+            actor,
+            state,
+            initialised_length: 0,
+            initialised_universe_offset: 0,
+            dimensionality,
+            target_xln,
+            universe,
         }
-        if ok {
-            let mut nv = v.clone();
-            nv.push((*np).clone());
-            extend(nv, target_ln, &universe[(1 + vx)..], actor);
+    }
+
+    fn initialise(&mut self, start_pts: Vec<Vec<u8>>, universe_offset: usize) {
+        self.initialised_length = self.dimensionality * start_pts.len();
+        for u in 0..start_pts.len() {
+            for v in 0..self.dimensionality {
+                self.state[v + u * self.dimensionality] = start_pts[u][v];
+            }
+        }
+        self.initialised_universe_offset = universe_offset;
+    }
+
+    fn execute(&mut self) {
+        self.extend(self.initialised_length, self.initialised_universe_offset);
+    }
+
+    fn extend(&mut self, valid_length: usize, universe_offset: usize) {
+        if valid_length == self.target_xln {
+            let v: Vec<Vec<u8>> = self
+                .state
+                .chunks(self.dimensionality)
+                .map(|x| x.to_vec())
+                .collect();
+            self.actor.act(&v);
+            return;
+        }
+        let dd0 = distance_bitset(&self.state[0..valid_length], self.dimensionality);
+        for vx in universe_offset..self.universe.len() {
+            let np = &(self.universe)[vx];
+            let mut nds = dd0.clone();
+            let mut ok = true;
+            for w in self.state[0..valid_length].chunks(self.dimensionality) {
+                let xd = dist(w, np) as usize;
+                if nds.contains(xd) {
+                    ok = false;
+                    break;
+                }
+                nds.insert(xd);
+            }
+            if ok {
+                for i in 0..self.dimensionality {
+                    self.state[valid_length + i] = (*np)[i];
+                }
+                self.extend(valid_length + self.dimensionality, vx);
+            }
         }
     }
 }
@@ -132,26 +191,20 @@ fn main() {
         let _ = tasks
             .par_iter()
             .map(|a| {
+                let mut x = Extender::new(args.n_pts, args.dimensions, &pts, &printer);
+                x.initialise(vec![pts[a.0].clone(), pts[a.1].clone()], a.1 + 1);
                 eprint!("  {} {}    \r", a.0, a.1);
-                extend(
-                    vec![pts[a.0].clone(), pts[a.1].clone()],
-                    args.n_pts,
-                    &pts[(1 + a.1)..],
-                    &printer,
-                )
+                x.execute();
             })
             .count();
     } else {
         let _ = tasks
             .par_iter()
             .map(|a| {
+                let mut x = Extender::new(args.n_pts, args.dimensions, &pts, &counter);
+                x.initialise(vec![pts[a.0].clone(), pts[a.1].clone()], a.1 + 1);
                 eprint!("  {} {}    \r", a.0, a.1);
-                extend(
-                    vec![pts[a.0].clone(), pts[a.1].clone()],
-                    args.n_pts,
-                    &pts[(1 + a.1)..],
-                    &counter,
-                )
+                x.execute();
             })
             .count();
     }
