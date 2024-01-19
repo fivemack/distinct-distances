@@ -116,6 +116,8 @@ fn visualise(pt : &Vec<[f64;2]>, m: VisualisationMode, filename: &str)
     
 }
 
+const SZ: usize = 2*3;
+
 fn main() -> Result<(), Error> {
 //   let init: Vec<[f64;2]> = vec![[0.4407,0.0106],[0.4908,0.3084],[0.9152,0.8882]];
 
@@ -135,7 +137,7 @@ fn main() -> Result<(), Error> {
     let mut bx = Vec::new();
     for _r in 0..10000
     {
-        let init0 = (1..=10).map(|u| rng.gen_range(0.0..1.0)).collect::<Vec<_>>();
+        let init0 = (1..=SZ).map(|u| rng.gen_range(0.0..1.0)).collect::<Vec<_>>();
         let sc = score_flat(&init0);
         if sc>bsst {bsst=sc; bx=init0.clone()}
     }
@@ -150,7 +152,7 @@ fn main() -> Result<(), Error> {
         let mut init0 = bx.clone();
         while !happy
         {
-            init0 = (1..=10).map(|u| rng.gen_range(0.0..1.0)).collect::<Vec<_>>();
+            init0 = (1..=SZ).map(|u| rng.gen_range(0.0..1.0)).collect::<Vec<_>>();
             if (score_flat(&init0)>bsst) { happy=true; }
         } 
 
