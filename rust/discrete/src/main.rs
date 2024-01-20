@@ -64,6 +64,7 @@ struct Extender<'a> {
 
     dimensionality: usize,
     target_xln: usize,
+    max_distance: usize,
 
     universe: &'a Vec<Vec<u8>>,
 
@@ -88,6 +89,7 @@ impl<'a> Extender<'a> {
             dimensionality,
             target_xln,
             universe,
+            max_distance: 0,
         }
     }
 
@@ -99,6 +101,8 @@ impl<'a> Extender<'a> {
             }
         }
         self.initialised_universe_offset = universe_offset;
+        let universe_biggest = (self.universe.iter().map(|a| *((*a).iter().max().unwrap())).max().unwrap()) as usize;
+        self.max_distance = self.dimensionality * universe_biggest * universe_biggest;
     }
 
     fn execute(&mut self) {
@@ -116,9 +120,10 @@ impl<'a> Extender<'a> {
             return;
         }
         let dd0 = distance_bitset(&self.state[0..valid_length], self.dimensionality);
+        let mut nds = BitSet::with_capacity(self.max_distance);
         for vx in universe_offset..self.universe.len() {
             let np = &(self.universe)[vx];
-            let mut nds = dd0.clone();
+            nds.clone_from(&dd0);
             let mut ok = true;
             for w in self.state[0..valid_length].chunks(self.dimensionality) {
                 let xd = dist(w, np) as usize;
