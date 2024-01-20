@@ -40,8 +40,8 @@ fn distances(u: &[Vec<u8>]) -> Vec<u16> {
         .collect()
 }
 
-fn distance_bitset(u: &[u8], d: usize) -> BitSet {
-    let mut bs = BitSet::new();
+fn distance_bitset(u: &[u8], d: usize, p: usize) -> BitSet {
+    let mut bs = BitSet::with_capacity(p);
     for a in u
         .chunks(d)
         .tuple_combinations::<(_, _)>()
@@ -119,7 +119,7 @@ impl<'a> Extender<'a> {
             self.actor.act(&v);
             return;
         }
-        let dd0 = distance_bitset(&self.state[0..valid_length], self.dimensionality);
+        let dd0 = distance_bitset(&self.state[0..valid_length], self.dimensionality, self.max_distance);
         let mut nds = BitSet::with_capacity(self.max_distance);
         for vx in universe_offset..self.universe.len() {
             let np = &(self.universe)[vx];
